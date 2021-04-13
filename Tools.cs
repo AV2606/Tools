@@ -2,89 +2,225 @@
 using System.Drawing;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows.Media.Imaging;
+//using System.Windows.Media.Imaging;
 using System.Threading;
-using System.Windows.Media;
+//using System.Windows.Media;
 using Color = System.Drawing.Color;
 using System.Windows;
 
+public static class Extensions
+{
+    /// <summary>
+    /// A method to use in the <see cref="Sort(T[], Compare)"/> which sorts two elements by the prefered propety.
+    /// <para>
+    /// should return True if item1 is "smaller" than item2.
+    /// </para>
+    /// <para>
+    /// If returns the opposite it may reverse the order of the list.
+    /// </para>
+    /// </summary>
+    /// <param name="item1"></param>
+    /// <param name="item2"></param>
+    /// <returns></returns>
+    public delegate bool Compare<T>(T item1, T item2);
+    /// <summary>
+    /// returns a singel dimensional array that is an equivilant to the two dimensional array 'target'
+    /// </summary>
+    /// <param name="target"></param>
+    /// <returns></returns>
+    public static T[] Reduce<T>(this T[,] target)
+    {
+        var arr = new T[target.GetLength(0) * target.GetLength(1)];
+        int index = 0;
+        foreach (var item in target)
+        {
+            arr[index++] = item;
+        }
+        return arr;
+    }
+    /// <summary>
+    /// tries to return the one dimensional array 'targert' to its original two dimensional array.
+    /// </summary>
+    /// <param name="target"></param>
+    /// <returns></returns>
+    public static T[,] Expande<T>(this T[] target, int firstDimensionSize)
+    {
+        T[,] r = new T[firstDimensionSize, Tools.Algebra.Round(target.Length / firstDimensionSize)];
+        int target_index = 0; ;
+        for (int i = 0; i < firstDimensionSize; i++)
+            for (int j = 0; j < r.GetLength(1); j++, target_index++)
+                r[i, j] = target[target_index];
+        return r;
+    }
+    /// <summary>
+    /// Sorting the array with <see cref="Compare"/> as the logic of the comparing method.
+    /// </summary>
+    /// <param name="array"></param>
+    /// <param name="method"></param>
+    /// <returns></returns>
+    public static T[] Sort<T>(this T[] array, Compare<T> method)
+    {
+        for (int i = 0; i < array.Length; i++)
+            for (int j = i; j < array.Length; j++)
+                if (method(array[j], array[i]))
+                {
+                    var temp = array[i];
+                    array[i] = array[j];
+                    array[j] = temp;
+                }
+        return array;
+    }
+    /// <summary>
+    /// Returns an array which his elements are a sub-sequence of this array.
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="me"></param>
+    /// <param name="startIndex">The index to start to copy this array from.</param>
+    /// <param name="length">The length of the sub array.</param>
+    /// <returns></returns>
+    public static T[] SubArray<T>(this T[] me,int startIndex=0,int length = -1)
+    {
+        if (length < 0)
+            length = me.Length - startIndex;
+        T[] r = new T[length];
+        for (int i = 0; i < length; i++)
+            r[i] = me[i + startIndex];
+        return r;
+    }
+    /// <summary>
+    /// Returns a string that represents this <see cref="IEnumerable{T}"/> with human-friendly syntax.
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="toStringLogic">Overloading the string represntive method of each element.</param>
+    /// <returns></returns>
+    public static string ToString<T>(this IEnumerable<T> me,Func<T,string> toStringLogic=null) 
+    {
+        string r = " {";
+        if (toStringLogic is null)
+            foreach (var item in me)
+            {
+                if (item is ValueType)
+                    r += item + ", ";
+                else
+                    r += item.ToString() + ", ";
+            }
+        else
+            foreach (var item in me)
+            {
+                r += toStringLogic(item) + ", ";
+            }
+        return r+"}";
+    }
+    /// <summary>
+    /// Swaps the elements in <paramref name="index1"/> and <paramref name="index2"/>
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="me"></param>
+    /// <param name="index1"></param>
+    /// <param name="index2"></param>
+    public static void Swap<T>(this List<T> me,int index1,int index2)
+    {
+        var temp = me[index1];
+        me[index1] = me[index2];
+        me[index2] = temp;
+    }
+    /// <summary>
+    /// Shuffles this List.
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="me"></param>
+    /// <param name="rnd"></param>
+    public static void Shuffle<T>(this List<T> me, Random rnd=null)
+    {
+        if (rnd is null)
+            rnd = new Random();
+        int length = me.Count;
+        for (int i = 0; i < length; i++)
+        {
+            me.Swap(i, rnd.Next(0, length));
+        }
+    }
+    /// <summary>
+    /// Returns the Maximum value of the <see cref="IEnumerable{T}"/>.
+    /// </summary>
+    /// <typeparam name="T">Should implement the <see cref="IComparable"/></typeparam>
+    /// <param name="me"></param>
+    /// <returns></returns>
+    public static T GetMax<T>(this IEnumerable<T> me) where T : IComparable
+    {
+        T max = me.ElementAt(0);
+        foreach (var item in me)
+            if (item.CompareTo(max)>0)
+                max = item;
+        return max;
+    }
+    /// <summary>
+    /// Returns the Minumum value of the <see cref="IEnumerable{T}"/>.
+    /// </summary>
+    /// <typeparam name="T">Should implement the <see cref="IComparable"/></typeparam>
+    /// <param name="me"></param>
+    /// <returns></returns>
+    public static T GetMin<T>(this IEnumerable<T> me) where T : IComparable
+    {
+        T min = me.ElementAt(0);
+        foreach (var item in me)
+            if (item.CompareTo(min) < 0)
+                min = item;
+        return min;
+    }
+    /// <summary>
+    /// Returns the index of the 'biggest' element of the <see cref="IEnumerable{T}"/>.
+    /// </summary>
+    /// <typeparam name="T">Should implement the <see cref="IComparable"/></typeparam>
+    /// <param name="me"></param>
+    /// <returns></returns>
+    public static int GetMaxIndex<T>(this IEnumerable<T> me) where T : IComparable
+    {
+        int maxIndex = 0;
+        int length = me.Count();
+        for (int i = 1; i < length; i++)
+        {
+            if (me.ElementAt(i).CompareTo(me.ElementAt(maxIndex)) > 0)
+                maxIndex = i;
+
+        }
+        return maxIndex;
+    }
+    /// <summary>
+    /// Returns the index of the 'minumum' value of the <see cref="IEnumerable{T}"/>.
+    /// </summary>
+    /// <typeparam name="T">Should implement the <see cref="IComparable"/></typeparam>
+    /// <param name="me"></param>
+    /// <returns></returns>
+    public static int GetMinIndex<T>(this IEnumerable<T> me) where T : IComparable
+    {
+        int minIndex = 0;
+        int length = me.Count();
+        for (int i = 1; i < length; i++)
+        {
+            if (me.ElementAt(i).CompareTo(me.ElementAt(minIndex)) < 0)
+                minIndex = i;
+
+        }
+        return minIndex;
+    }
+}
 public class Tools
 {
     public static void DoNothin() { }
-
-    public class ArrayTools<T>
-    {
-        /// <summary>
-        /// A method to use in the <see cref="Sort(T[], Compare)"/> which sorts two elements by the prefered propety.
-        /// <para>
-        /// should return True if item1 is "smaller" than item2.
-        /// </para>
-        /// <para>
-        /// If returns the opposite it may reverse the order of the list.
-        /// </para>
-        /// </summary>
-        /// <param name="item1"></param>
-        /// <param name="item2"></param>
-        /// <returns></returns>
-        public delegate bool Compare(T item1, T item2);
-        /// <summary>
-        /// returns a singel dimensional array that is an equivilant to the two dimensional array 'target'
-        /// </summary>
-        /// <param name="target"></param>
-        /// <returns></returns>
-        public static T[] Reduce(T[,] target)
-        {
-            var arr = new T[target.GetLength(0) * target.GetLength(1)];
-            int index = 0;
-            foreach(var item in target)
-            {
-                arr[index++] = item;
-            }
-            return arr;
-        }
-        /// <summary>
-        /// tries to return the one dimensional array 'targert' to its original two dimensional array.
-        /// </summary>
-        /// <param name="target"></param>
-        /// <returns></returns>
-        public static T[,] Expande(T[] target, int firstDimension)
-        {
-            T[,] r = new T[firstDimension, Algebra.Round(target.Length/firstDimension)];
-            int target_index = 0; ;
-            for (int i = 0; i < firstDimension; i++)
-                for (int j = 0; j < r.GetLength(1); j++,target_index++)
-                    r[i,j] = target[target_index];
-            return r;
-        }
-        /// <summary>
-        /// Sorting the array with <see cref="Compare"/> as the logic of the comparing method.
-        /// </summary>
-        /// <param name="array"></param>
-        /// <param name="method"></param>
-        /// <returns></returns>
-        public static T[] Sort(T[] array,Compare method)
-        {
-            for (int i = 0; i < array.Length; i++)
-                for (int j = i; j < array.Length; j++)
-                    if(method(array[j],array[i]))
-                    {
-                        var temp = array[i];
-                        array[i] = array[j];
-                        array[j] = temp;
-                    }
-            return array;
-        }
-    }
     public static class ThreadPool
     {
         static Queue<Thread> pool;
         /// <summary>
         /// The number of thread currently pooled.
         /// </summary>
-        public static int Threads { get
+        public static int Threads
+        {
+            get
             {
                 return pool.Count;
-            } }
+            }
+        }
         /// <summary>
         /// Indicates wether to keep managing threads that finished execution or discard them, false by default.
         /// </summary>
@@ -104,7 +240,7 @@ public class Tools
         /// </summary>
         /// <param name="t">The <see cref="Thread"/> to add.</param>
         /// <param name="Start">Indicates wether to start the <see cref="Thread"/> or not.</param>
-        public static void Add(Thread t,bool Start=false)
+        public static void Add(Thread t, bool Start = false)
         {
             pool.Enqueue(t);
             t.Priority = ThreadPriority.Highest;
@@ -118,11 +254,11 @@ public class Tools
         /// <param name="t">The <see cref="Thread"/> to add.</param>
         /// <param name="Name">The name of the thread.</param>
         /// <param name="Start">Indicates wetherto start the <see cref="Thread"/> or not.</param>
-        public static void Add(ThreadStart ts, bool Start = true ,string Name="Unamed thread")
+        public static void Add(ThreadStart ts, bool Start = true, string Name = "Unamed thread")
         {
             Thread t = new Thread(ts);
             t.Name = Name;
-            Add(t,Start);
+            Add(t, Start);
         }
         public static Thread Remove(Thread t)
         {
@@ -191,7 +327,7 @@ public class Tools
 
                 }
             }
-                
+
         }
         public static Thread[] RemoveAllFinished()
         {
@@ -202,7 +338,7 @@ public class Tools
                 if (pool.Peek().IsAlive == false)
                     pool.Dequeue();
                 else
-                pool.Enqueue(pool.Dequeue());
+                    pool.Enqueue(pool.Dequeue());
             }
             return pool.ToArray();
         }
@@ -226,7 +362,7 @@ public class Tools
         /// </summary>
         private static void GCService()
         {
-            Start:
+        Start:
             while (!KeepFinishedThreads)
                 RemoveAllFinished();
             while (KeepFinishedThreads)
@@ -268,7 +404,7 @@ public class Tools
         public static int Round(double d)
         {
             if (((int)d) - d != 0)
-                return d<0?(int)d:(int)(d + 1);
+                return d < 0 ? (int)d : (int)(d + 1);
             return (int)d;
         }
     }
@@ -299,14 +435,14 @@ public class Tools
             /// <param name="index1"></param>
             /// <param name="index2"></param>
             /// <returns></returns>
-            public Color this[int index1,int index2]
+            public Color this[int index1, int index2]
             {
                 get
                 {
                     return Color.FromArgb((int)Canvas[index1, index2]);
                 }
             }
-            
+
             /// <summary>
             /// creates an empty 0 sized image
             /// </summary>
@@ -346,7 +482,7 @@ public class Tools
             /// <param name="image"></param>
             public GenericImage(byte[,] image)
             {
-                Canvas = new uint[image.GetLength(0)/4, image.GetLength(1)];
+                Canvas = new uint[image.GetLength(0) / 4, image.GetLength(1)];
                 for (int i = 0; i < Canvas.GetLength(0); i++)
                 {
                     for (int j = 0; j < Canvas.GetLength(1); j++)
@@ -391,7 +527,7 @@ public class Tools
             /// <param name="color"></param>
             /// <param name="x"></param>
             /// <param name="y"></param>
-            public void SetPixel(uint color,int x, int y)
+            public void SetPixel(uint color, int x, int y)
             {
                 Canvas[x, y] = color;
             }
@@ -426,7 +562,7 @@ public class Tools
             /// </summary>
             /// <param name="up">The color to be at the upper line of the image.</param>
             /// <param name="down">The color to be at the lower line of the image.</param>
-            public void GradientUpDown(Color up,Color down)
+            public void GradientUpDown(Color up, Color down)
             {
                 int h = Height, w = Width;
                 for (int j = 0; j < h; j++)
@@ -466,7 +602,7 @@ public class Tools
             /// </summary>
             /// <param name="_old">The old color to replace</param>
             /// <param name="_new">The new color to put in.</param>
-            public void Replace(Color _old,Color _new)
+            public void Replace(Color _old, Color _new)
             {
                 uint old = (uint)_old.ToArgb();
                 uint n = (uint)_new.ToArgb();
@@ -475,19 +611,19 @@ public class Tools
                         if (Canvas[i, j] == old)
                             Canvas[i, j] = n;
             }
-
+            /*
             public WriteableBitmap ToWriteableBitmap()
             {
                 WriteableBitmap bitmap = new WriteableBitmap(Width, Height, 1, 1, PixelFormats.Bgra32, BitmapPalettes.Halftone256Transparent);
                 Int32Rect rect = new Int32Rect(0, 0, Width, Height);
                 bitmap.WritePixels(rect, Canvas, Width * 4, 0);
                 return bitmap;
-            }
+            }*//*
             public unsafe Bitmap ToBitmap()
             {
                 int w = Width, h = Height;
                 Bitmap img = new Bitmap(w, h);
-                var data= img.LockBits(new Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.ReadWrite, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                var data = img.LockBits(new Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.ReadWrite, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
                 int* ip = (int*)data.Scan0.ToPointer();
                 uint* p = (uint*)ip;
                 int index = 0;
@@ -501,7 +637,7 @@ public class Tools
                 img.UnlockBits(data);
                 var test = img.GetPixel(0, 0);
                 return img;
-            }
+            }*/
 
             private bool Equals(GenericImage img)
             {
@@ -548,7 +684,7 @@ public class Tools
 
             public override string ToString()
             {
-                return "32 bit image: "+Width + "*" + Height;
+                return "32 bit image: " + Width + "*" + Height;
             }
         }
     }
