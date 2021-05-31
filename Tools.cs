@@ -1,14 +1,16 @@
 ﻿using System;
-using System.Drawing;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 //using System.Windows.Media.Imaging;
 using System.Threading;
+using Tools.Extensions;
 //using System.Windows.Media;
 using Color = System.Drawing.Color;
-using System.Windows;
-using Tools.Extensions;
-//Version 0.2
+//Version 0.3
+
+//You sould import from nuget the System.Drawing.Common
+///Allow unsafe code in the project properties for the <seealso cref="Tools.Imageing.GenericImage.ToBitmap"/>()
 
 /// <summary>
 /// Holds a veriaty of tools to handle efficent programms.
@@ -766,7 +768,7 @@ namespace Tools
         /// <summary>
         /// Represent an image of the basic pixel format 32-bit ARGB
         /// </summary>
-        public class GenericImage
+        public class GenericImage : ICloneable
         {
             private uint[,] Canvas;
             public int Width { get { return Canvas.GetLength(0); } }
@@ -1121,6 +1123,7 @@ namespace Tools
                 for (int i = 0; i < w; i++)
                     for (int j = 0; j < h; j++)
                         im.SetPixel(b.GetPixel(i, j), i, j);
+               
                 return im;
             }
 
@@ -1128,6 +1131,363 @@ namespace Tools
             {
                 return "32 bit image: " + Width + "*" + Height;
             }
+
+            public object Clone()
+            {
+                return new GenericImage(Canvas);
+            }
         }
     }    
+    /// <summary>
+    /// Encapuslate communication with the system and files.
+    /// </summary>
+    namespace SysIO
+    {
+        using System.IO;
+        //using System.Runtime.InteropServices;
+        //using System.Text;
+        /*public class DataPack<T> where T:notnull
+        {
+            public T value { get; set; }
+            public string URL { get; private set; }
+
+            public DataPack(string url)
+            {
+                URL = url;
+            }
+            public DataPack(string url,T val)
+            {
+                URL = url;
+                value = val;
+            }
+            private DataPack()
+            {
+
+            }
+
+            public void WriteToFile(string url)
+            {
+                FileStream f = new FileStream(url, FileMode.OpenOrCreate, FileAccess.Write);
+                var arr = ToByteArray(this.value);
+                f.Write(arr, 0, arr.Length);
+            }
+            public static DataPack<T> ReadFromFile<T>(string url,int startIndex=0,int endIndex=-1,int timeout=10000) where T:notnull
+            {
+                DataPack<T> r = new DataPack<T>();
+                FileStream f = new FileStream(url, FileMode.Open, FileAccess.Read);
+                f.ReadTimeout = timeout;
+                if (endIndex == -1)
+                    endIndex = (int)f.Length - startIndex - 1;
+                byte[] arr = new byte[endIndex - startIndex];
+                f.Read(arr, startIndex, arr.Length);
+                r = new DataPack<T>();
+                r.value = FromByteArray<T>(arr);
+                return r;
+            }
+
+            private unsafe static byte[] ToByteArray<T>(T data) where T:notnull
+            {
+                var size = Marshal.SizeOf<T>(data);
+                byte[] bytes = new byte[size];
+                var ptr = Marshal.AllocHGlobal(size);
+                Marshal.StructureToPtr(data, ptr, false);
+                Marshal.Copy(ptr, bytes, 0, size);
+                Marshal.FreeHGlobal(ptr);
+                return bytes;
+            }
+            private static T FromByteArray<T>(byte[] bytes) where T:notnull 
+            {
+                var ptr = Marshal.AllocHGlobal(bytes.Length);
+                Marshal.Copy(bytes, 0, ptr, bytes.Length);
+                T r = (T)Marshal.PtrToStructure(ptr, typeof(T));
+                return r;
+            }
+        }*/
+
+        #region Data abstractions
+        /// <summary>
+        /// Implements an object that can be read.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        public interface IReadable<T>
+        {
+            /// <summary>
+            /// Creates a <seealso cref="T"/> instance from <paramref name="content"/>.
+            /// </summary>
+            /// <param name="content">The object representaion in <see cref="string"/>, if <paramref name="content"/> is more than 1 line it might produce unexpected behavior.</param>
+            /// <returns></returns>
+            public T FromStringFile(string content);
+        }
+        /// <summary>
+        /// Implements an object that can be written
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        public interface IWriteable<T>
+        {
+            /// <summary>
+            /// Converts this instance to its <see cref="string"/> representaion.
+            /// </summary>
+            /// <param name="data"></param>
+            /// <returns></returns>
+            public string ToStringFile(T data);
+        }
+
+        /// <summary>
+        /// Base class for data packs using for storing data in the machine memory.
+        /// </summary>
+        /// <typeparam name="T">An object that can be read and write from and to <see cref="string"/></typeparam>
+        public abstract class DataPack<T>: IWriteable<T>, IReadable<T>
+        {
+            public static readonly string FileExtension;
+            public string URL { get; set; } = "//";
+            public T Data;
+
+            /// <summary>
+            /// Overrides the file specified by <see cref="URL"/> with this <see cref="DataPack{T}"/>.
+            /// </summary>
+            public void WriteToFile()
+            {
+                string content = ToStringFile(Data);
+                CancellationTokenSource source = new CancellationTokenSource(1000);
+                var token = source.Token;
+                File.WriteAllTextAsync(URL + FileExtension, '\n'+content, token);
+            }
+            /// <summary>
+            /// Appends this <see cref="DataPack{T}"/> to the file specified by <see cref="URL"/> in a new line.
+            /// </summary>
+            public void AppendToFile()
+            {
+                string content = ToStringFile(Data);
+                CancellationTokenSource source = new CancellationTokenSource(1000);
+                var token = source.Token;
+                File.AppendAllTextAsync(URL + FileExtension, '\n' + content, token);
+            }
+            /// <summary>
+            /// Reads all <see cref="DataPack{T}"/> in the range.
+            /// </summary>
+            /// <param name="startIndex">The index of the line to start read at (zero-based).</param>
+            /// <param name="Length">The length of the array to return.</param>
+            /// <returns></returns>
+            public abstract DataPack<T>[] ReadFromFile(int startIndex = 0, int Length = 1);
+            public abstract T FromStringFile(string content);
+            public abstract string ToStringFile(T data);
+        }
+        #endregion
+
+        #region Base data packs
+        public class IntPack : DataPack<long>
+        {
+            public static new readonly string FileExtension = ".integer";
+            //public long Data { get; set; }
+
+            #region Constructors
+            public IntPack(long value)
+            {
+                this.Data = value;
+                base.Data = value;
+            }
+            public IntPack()
+            {
+            }
+            public IntPack(string url)
+            {
+                this.URL = url;
+            }
+            #endregion
+
+            #region DataPack<T> implementions
+            public override long FromStringFile(string content)
+            {
+                return long.Parse(content);
+            }
+            public override IntPack[] ReadFromFile(int startIndex = 0, int Length = 1)
+            {
+                var text = File.ReadAllLines(URL + FileExtension);
+                var r = new IntPack[Length];
+                for (int i = startIndex; i < startIndex + Length; i++)
+                    r[i - startIndex] = new IntPack(FromStringFile(text[i]));
+                return r;
+            }
+            public override string ToStringFile(long data)
+            {
+                return data + "";
+            }
+            #endregion
+
+            #region Static methods
+            /// <summary>
+            /// Reads a range of packs from the specified <paramref name="Url"/>.
+            /// </summary>
+            /// <param name="Url">The URL of the file to read from.</param>
+            /// <param name="startIndex">The index of the line to start reading from.</param>
+            /// <param name="Length">The length of the array of the data packs.</param>
+            /// <returns></returns>
+            public static IntPack[] ReadFromFile(string Url, int startIndex = 0, int Length = 1)
+            {
+                return new IntPack(Url).ReadFromFile(startIndex, Length);
+            }
+            #endregion
+        }
+
+        public class StringPack : DataPack<string>
+        {
+            public static new readonly string FileExtension = ".string";
+
+            #region Constructor
+            public StringPack(string value)
+            {
+                URL = "//";
+                this.Data = value;
+            }
+            public StringPack()
+            {
+                URL = "//";
+                Data = "";
+            }
+            public StringPack(string url,string value="")
+            {
+                this.URL = url;
+                this.Data = value;
+            }
+            #endregion
+
+            #region DataPack<T> implementions
+            /// <summary>
+            /// Returns the first line of text.
+            /// </summary>
+            /// <param name="content">The file content.</param>
+            /// <returns></returns>
+            public override string FromStringFile(string content)
+            {
+                int index = content.IndexOfAny(new char[] { '\r', '\n' });
+                return content.Substring(0,index>0?index:content.Length);
+            }
+            /// <summary>
+            /// Reads all <see cref="StringPack"/>s in range.
+            /// </summary>
+            /// <param name="startIndex">The index of the first line to read from.</param>
+            /// <param name="Length">The range length.</param>
+            /// <returns></returns>
+            public override StringPack[] ReadFromFile(int startIndex = 0, int Length = 1)
+            {
+                var text = File.ReadAllLines(URL + FileExtension);
+                var r = new StringPack[Length];
+                for (int i = startIndex; i < startIndex + Length; i++)
+                    r[i - startIndex] = new StringPack(FromStringFile(text[i]));
+                return r;
+            }
+            public override string ToStringFile(string data)
+            {
+                return data;
+            }
+            #endregion
+
+            #region Static methods
+            /// <summary>
+            /// Reads a range of packs from the specified <paramref name="Url"/>.
+            /// </summary>
+            /// <param name="Url">The URL of the file to read from.</param>
+            /// <param name="startIndex">The index of the line to start reading from.</param>
+            /// <param name="Length">The length of the array of the data packs.</param>
+            /// <returns></returns>
+            public static StringPack[] ReadFromFile(string Url, int startIndex = 0, int Length = 1)
+            {
+                return new StringPack(Url).ReadFromFile(startIndex, Length);
+            }
+            #endregion
+        }
+
+        public class BooleanPack : DataPack<bool>
+        {
+            public static new readonly string FileExtension = ".bool";
+
+            #region Constructors
+            /// <summary>
+            /// Creates an instance of a <see cref="BooleanPack"/> with no sepcifies url.
+            /// </summary>
+            /// <param name="value">The data value of this pack.</param>
+            public BooleanPack(bool value=false)
+            {
+                Data = value;
+            }
+
+            /// <summary>
+            /// Creates an instance of a <see cref="BooleanPack"/> with default Data value = false.
+            /// </summary>
+            /// <param name="url">The URL of the file</param>
+            public BooleanPack(string url)
+            {
+                Data = false;
+                this.URL = url;
+            }
+
+            /// <summary>
+            /// Creates an instance of <see cref="BooleanPack"/>.
+            /// </summary>
+            /// <param name="url">The URL of the file assosiated with this pack.</param>
+            /// <param name="value">The data value.</param>
+            public BooleanPack(string url,bool value)
+            {
+                Data = value;
+                this.URL = url;
+            }
+            #endregion
+
+            #region DataPack<T> implementaion
+
+            /// <summary>
+            /// Reads all the <see cref="BooleanPack"/>s in the range.
+            /// </summary>
+            /// <param name="startIndex">The index of the line to start reading from.</param>
+            /// <param name="Length">The length of the array.</param>
+            /// <returns></returns>
+            public override BooleanPack[] ReadFromFile(int startIndex = 0, int Length = 1)
+            {
+                var text = File.ReadAllLines(URL + FileExtension);
+                var r = new BooleanPack[Length];
+                for (int i = 0; i < Length; i++)
+                {
+                    r[i] = new BooleanPack(URL,FromStringFile(text[i + startIndex]));
+                }
+                return r;
+            }
+            public override string ToStringFile(bool data)
+            {
+                return data ? "1" : "0";
+            }
+            public override bool FromStringFile(string content)
+            {
+                if (content == "0")
+                    return false;
+                if (content == "1")
+                    return true;
+                if (content == "true" || content == "True" || content == "t" || content == "T")
+                    return true;
+                if (content == "false" || content == "False" || content == "f" || content == "F")
+                    return false;
+                throw new FormatException("The content is not in the right format!\nshould have values of: '0'/'1'/'t'/'T'/'f'/'F'/'true'/'True'/'false'/'False'");
+            }
+            #endregion
+
+            #region Static methods
+            public static BooleanPack[] ReadFromFile(string Url, int startIndex = 0, int Length = 1)
+            {
+                return new BooleanPack(Url).ReadFromFile(startIndex, Length);
+            }
+            #endregion
+        }
+        #endregion
+
+        public class DataBase<T>
+        {
+            public List<DataPack<T>> Info;
+            public string URL = "//";
+            public readonly string FilesExtensions;
+
+            public DataBase()
+            {
+
+            }
+        } 
+    }
 }
