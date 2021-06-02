@@ -1236,13 +1236,15 @@ namespace Tools
         /// Base class for data packs using for storing data in the machine memory.
         /// </summary>
         /// <typeparam name="T">An object that can be read and write from and to <see cref="string"/></typeparam>
-        public abstract class DataPack<T>: IWriteable<T>, IReadable<T>
+        public abstract class DataPack<T> : DataPack, IWriteable<T>, IReadable<T>
         {
-            public static readonly string FileExtension;
-            public string URL { get; set; } = "//";
             public T Data;
 
-            /// <summary>
+            public DataPack()
+            {
+
+            }
+            /*/// <summary>
             /// Overrides the file specified by <see cref="URL"/> with this <see cref="DataPack{T}"/>.
             /// </summary>
             public void WriteToFile()
@@ -1251,16 +1253,18 @@ namespace Tools
                 CancellationTokenSource source = new CancellationTokenSource(1000);
                 var token = source.Token;
                 File.WriteAllTextAsync(URL + FileExtension, '\n'+content, token);
-            }
+            }*/
             /// <summary>
             /// Appends this <see cref="DataPack{T}"/> to the file specified by <see cref="URL"/> in a new line.
             /// </summary>
-            public void AppendToFile()
+            public override void AppendToFile(string URL)
             {
                 string content = ToStringFile(Data);
                 CancellationTokenSource source = new CancellationTokenSource(1000);
                 var token = source.Token;
-                File.AppendAllTextAsync(URL + FileExtension, '\n' + content, token);
+                if (File.Exists(URL))
+                    content = '\n' + content;
+                File.AppendAllTextAsync(URL, content, token);
             }
             /// <summary>
             /// Reads all <see cref="DataPack{T}"/> in the range.
@@ -1268,30 +1272,39 @@ namespace Tools
             /// <param name="startIndex">The index of the line to start read at (zero-based).</param>
             /// <param name="Length">The length of the array to return.</param>
             /// <returns></returns>
-            public abstract DataPack<T>[] ReadFromFile(int startIndex = 0, int Length = 1);
+            public abstract DataPack<T>[] ReadFromFile(string URL, int startIndex = 0, int Length = 1);
+            /// <summary>
+            /// Returns the runtime data from it string representaion.
+            /// </summary>
+            /// <param name="content"></param>
+            /// <returns></returns>
             public abstract T FromStringFile(string content);
+            /// <summary>
+            /// Converts the runtime data variable to its string representaion.
+            /// </summary>
+            /// <param name="data"></param>
+            /// <returns></returns>
             public abstract string ToStringFile(T data);
+        }
+        public abstract class DataPack
+        {
+            public DataPack() { }
+            public abstract void AppendToFile(string URL);
         }
         #endregion
 
         #region Base data packs
         public class IntPack : DataPack<long>
         {
-            public static new readonly string FileExtension = ".integer";
-            //public long Data { get; set; }
-
+            public static readonly IntPack Zero = new IntPack(0);
             #region Constructors
             public IntPack(long value)
             {
                 this.Data = value;
-                base.Data = value;
             }
-            public IntPack()
+            public IntPack():base()
             {
-            }
-            public IntPack(string url)
-            {
-                this.URL = url;
+                
             }
             #endregion
 
@@ -1300,9 +1313,9 @@ namespace Tools
             {
                 return long.Parse(content);
             }
-            public override IntPack[] ReadFromFile(int startIndex = 0, int Length = 1)
+            public override IntPack[] ReadFromFile(string URL,int startIndex = 0, int Length = 1)
             {
-                var text = File.ReadAllLines(URL + FileExtension);
+                var text = File.ReadAllLines(URL);
                 var r = new IntPack[Length];
                 for (int i = startIndex; i < startIndex + Length; i++)
                     r[i - startIndex] = new IntPack(FromStringFile(text[i]));
@@ -1322,32 +1335,24 @@ namespace Tools
             /// <param name="startIndex">The index of the line to start reading from.</param>
             /// <param name="Length">The length of the array of the data packs.</param>
             /// <returns></returns>
-            public static IntPack[] ReadFromFile(string Url, int startIndex = 0, int Length = 1)
+            public static IntPack[] ReadFromURL(string Url, int startIndex = 0, int Length = 1)
             {
-                return new IntPack(Url).ReadFromFile(startIndex, Length);
+                return Zero.ReadFromFile(Url,startIndex, Length);
             }
             #endregion
         }
 
         public class StringPack : DataPack<string>
         {
-            public static new readonly string FileExtension = ".string";
-
+            public static readonly StringPack Zero=new StringPack();
             #region Constructor
             public StringPack(string value)
             {
-                URL = "//";
                 this.Data = value;
             }
             public StringPack()
             {
-                URL = "//";
                 Data = "";
-            }
-            public StringPack(string url,string value="")
-            {
-                this.URL = url;
-                this.Data = value;
             }
             #endregion
 
@@ -1368,9 +1373,9 @@ namespace Tools
             /// <param name="startIndex">The index of the first line to read from.</param>
             /// <param name="Length">The range length.</param>
             /// <returns></returns>
-            public override StringPack[] ReadFromFile(int startIndex = 0, int Length = 1)
+            public override StringPack[] ReadFromFile(string URL, int startIndex = 0, int Length = 1)
             {
-                var text = File.ReadAllLines(URL + FileExtension);
+                var text = File.ReadAllLines(URL);
                 var r = new StringPack[Length];
                 for (int i = startIndex; i < startIndex + Length; i++)
                     r[i - startIndex] = new StringPack(FromStringFile(text[i]));
@@ -1390,17 +1395,16 @@ namespace Tools
             /// <param name="startIndex">The index of the line to start reading from.</param>
             /// <param name="Length">The length of the array of the data packs.</param>
             /// <returns></returns>
-            public static StringPack[] ReadFromFile(string Url, int startIndex = 0, int Length = 1)
+            public static StringPack[] ReadFromURL(string Url, int startIndex = 0, int Length = 1)
             {
-                return new StringPack(Url).ReadFromFile(startIndex, Length);
+                return Zero.ReadFromFile(Url,startIndex, Length);
             }
             #endregion
         }
 
         public class BooleanPack : DataPack<bool>
         {
-            public static new readonly string FileExtension = ".bool";
-
+            public static readonly BooleanPack False = new BooleanPack();
             #region Constructors
             /// <summary>
             /// Creates an instance of a <see cref="BooleanPack"/> with no sepcifies url.
@@ -1409,27 +1413,6 @@ namespace Tools
             public BooleanPack(bool value=false)
             {
                 Data = value;
-            }
-
-            /// <summary>
-            /// Creates an instance of a <see cref="BooleanPack"/> with default Data value = false.
-            /// </summary>
-            /// <param name="url">The URL of the file</param>
-            public BooleanPack(string url)
-            {
-                Data = false;
-                this.URL = url;
-            }
-
-            /// <summary>
-            /// Creates an instance of <see cref="BooleanPack"/>.
-            /// </summary>
-            /// <param name="url">The URL of the file assosiated with this pack.</param>
-            /// <param name="value">The data value.</param>
-            public BooleanPack(string url,bool value)
-            {
-                Data = value;
-                this.URL = url;
             }
             #endregion
 
@@ -1441,13 +1424,13 @@ namespace Tools
             /// <param name="startIndex">The index of the line to start reading from.</param>
             /// <param name="Length">The length of the array.</param>
             /// <returns></returns>
-            public override BooleanPack[] ReadFromFile(int startIndex = 0, int Length = 1)
+            public override BooleanPack[] ReadFromFile(string URL, int startIndex = 0, int Length = 1)
             {
-                var text = File.ReadAllLines(URL + FileExtension);
+                var text = File.ReadAllLines(URL);
                 var r = new BooleanPack[Length];
                 for (int i = 0; i < Length; i++)
                 {
-                    r[i] = new BooleanPack(URL,FromStringFile(text[i + startIndex]));
+                    r[i] = new BooleanPack(FromStringFile(text[i + startIndex]));
                 }
                 return r;
             }
@@ -1470,23 +1453,40 @@ namespace Tools
             #endregion
 
             #region Static methods
-            public static BooleanPack[] ReadFromFile(string Url, int startIndex = 0, int Length = 1)
+            public static BooleanPack[] ReadFromURL(string Url, int startIndex = 0, int Length = 1)
             {
-                return new BooleanPack(Url).ReadFromFile(startIndex, Length);
+                return False.ReadFromFile(Url,startIndex, Length);
             }
             #endregion
         }
         #endregion
 
-        public class DataBase<T>
+        public class DataBase<T> where T:DataPack
         {
-            public List<DataPack<T>> Info;
+            public List<T> Info;
             public string URL = "//";
-            public readonly string FilesExtensions;
+            public readonly string FileExtension;
 
-            public DataBase()
+            public DataBase(string url, string fileExtention)
             {
+                this.URL = url;
+                this.FileExtension = fileExtention;
+            }
+            public DataBase(string fullURL)
+            {
+                int dotindex = fullURL.LastIndexOf('.');
+                string ex = fullURL.Substring(dotindex);
+                this.FileExtension = ex;
+                this.URL = fullURL.Substring(0,dotindex);
+            }
 
+            public bool Load()
+            {
+                var type = typeof(T);
+                var method=type.GetMethod("ReadFromURL");
+                T[] a=(T[])method.Invoke(null, new object[] { this.URL+this.FileExtension,0,2 });
+                this.Info = a.ToList();
+                return true;
             }
         } 
     }
