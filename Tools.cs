@@ -1143,6 +1143,7 @@ namespace Tools
     /// </summary>
     namespace SysIO
     {
+        using System.Collections;
         using System.IO;
         //using System.Runtime.InteropServices;
         //using System.Text;
@@ -1285,6 +1286,7 @@ namespace Tools
             /// <param name="data"></param>
             /// <returns></returns>
             public abstract string ToStringFile(T data);
+            
         }
         public abstract class DataPack
         {
@@ -1461,33 +1463,177 @@ namespace Tools
         }
         #endregion
 
-        public class DataBase<T> where T:DataPack
+        public enum DataBaseMsg
         {
-            public List<T> Info;
-            public string URL = "//";
-            public readonly string FileExtension;
+            Succesfull_Operation=0,
+            Unknown_Exception=0xE7707
 
-            public DataBase(string url, string fileExtention)
+        }
+        public enum WriteMode
+        {
+            Append=0,
+            Overwrite=1
+        }
+        public class DataBase<DataPack,T>: IEnumerable<DataPack>, IEnumerator<DataPack>,ICollection<DataPack> where DataPack:DataPack<T>
+        {
+            #region Instance members
+            #region Fields and Properties
+            public List<DataPack> Info { get; set; }
+            public string URL { get; set; } = "\\";
+            public readonly string FileExtension;
+            #endregion
+
+            #region Constructors
+            private DataBase(string url, string fileExtention)
             {
                 this.URL = url;
                 this.FileExtension = fileExtention;
             }
-            public DataBase(string fullURL)
+            private DataBase(string fullURL)
             {
                 int dotindex = fullURL.LastIndexOf('.');
                 string ex = fullURL.Substring(dotindex);
                 this.FileExtension = ex;
                 this.URL = fullURL.Substring(0,dotindex);
             }
+            #endregion
 
-            public bool Load()
+            #region writes
+            public bool Write(WriteMode mode,out DataBaseMsg msg)
             {
-                var type = typeof(T);
-                var method=type.GetMethod("ReadFromURL");
-                T[] a=(T[])method.Invoke(null, new object[] { this.URL+this.FileExtension,0,2 });
-                this.Info = a.ToList();
-                return true;
+                if (mode == WriteMode.Append)
+                    return Write_append(out msg);
+                return Write_overwrite(out msg);
             }
-        } 
+            private bool Write_append(out DataBaseMsg msg)
+            {
+                msg = DataBaseMsg.Succesfull_Operation;
+                try
+                {
+                    foreach (var item in Info)
+                    {
+                        item.AppendToFile(URL + FileExtension);
+                    }
+                    return true;
+                }
+                catch (Exception)
+                {
+                    msg = DataBaseMsg.Unknown_Exception;
+                    return false;
+                }
+            }
+            private bool Write_overwrite(out DataBaseMsg msg)
+            {
+                File.Delete(URL+FileExtension);
+                return Write_append(out msg);
+            }
+            #endregion
+
+            #region BasicMethods
+            public bool Load(out DataBaseMsg msg)
+            {
+                msg = DataBaseMsg.Succesfull_Operation;
+                try
+                {
+                    var type = typeof(DataPack);
+                    var method = type.GetMethod("ReadFromURL");
+                    DataPack[] a = (DataPack[])method.Invoke(null, new object[] { this.URL + this.FileExtension, 0, 2 });
+                    this.Info = a.ToList();
+                    return true;
+                }
+                catch (Exception)
+                {
+                    msg = DataBaseMsg.Unknown_Exception;
+                    return false;
+                }
+            }
+            public void Delete()
+            {
+                File.Delete(URL + FileExtension);
+            }
+            public List<DataPack> Where(Func<DataPack, bool> predicate)
+            {
+                return Info.Where(predicate).ToList();
+            }
+            public static DataBase<DataPack,T> Unite(DataBase<DataPack,T> a, DataBase<DataPack,T> b) 
+            {
+                a.Info.AddRange(b.Info);
+                DataBaseMsg msg;
+                a.Write(WriteMode.Overwrite, out msg);
+                if (msg != DataBaseMsg.Succesfull_Operation)
+                    throw new Exception("An exception occured");
+                b.Delete();
+                return (DataBase<DataPack,T>)a.MemberwiseClone();
+            }
+            #endregion
+
+            #region Interfaces
+            #region IEnumerator
+            private int index = 0;
+            public DataPack Current => Info[index];
+            object IEnumerator.Current => Info[index];
+
+            public bool MoveNext()
+            {
+                return ++index < Info.Count;
+            }
+            public void Reset()
+            {
+                index = 0;
+            }
+            public void Dispose()
+            {
+                
+            }
+            #endregion
+            #region ICollection
+            public int Count => Info.Count;
+            public bool IsReadOnly => false;
+            public void Add(DataPack item)
+            {
+                Info.Add(item);
+            }
+            public void Clear()
+            {
+                Info.Clear();
+            }
+            public bool Contains(DataPack item)
+            {
+                return Info.Contains(item);
+            }
+            public void CopyTo(DataPack[] array, int arrayIndex)
+            {
+                Info.CopyTo(array, arrayIndex);
+            }
+            public bool Remove(DataPack item)
+            {
+                return Info.Remove(item);
+            }
+            #endregion
+            #region IEnumerable
+            public IEnumerator<DataPack> GetEnumerator()
+            {
+                return Info.GetEnumerator();
+            }
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return Info.GetEnumerator();
+            }
+            #endregion
+            #endregion
+            #endregion
+
+            #region Static members
+            private static List<object> bases;
+            public static IReadOnlyList<DataBase<DataPack,T>> DataBases { get => (IReadOnlyList<DataBase<DataPack,T>>)bases; }
+
+            public static DataBase<DataPack,T> GetDataBase(string URL = "\\")
+            {
+                if (URL == "\\")
+                    return new DataBase<DataPack, T>(URL);
+                return null;
+            }
+            #endregion
+        }
     }
 }
