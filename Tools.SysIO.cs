@@ -313,6 +313,7 @@ namespace Tools
             {
                 this.URL = url;
                 this.FileExtension = fileExtention;
+                Info = new List<T>();
             }
             /// <summary>
             /// Initialize an instance of a database with the full path, name and file extension of the data base file.
@@ -324,6 +325,7 @@ namespace Tools
                 string ex = fullURL.Substring(dotindex);
                 this.FileExtension = ex;
                 this.URL = fullURL.Substring(0, dotindex);
+                Info = new List<T>();
             }
             #endregion
 
@@ -352,11 +354,12 @@ namespace Tools
                 {
                     foreach (var item in Info)
                     {
-                        File.AppendText(item.ToStringFile()+Environment.NewLine);
+                        var vl = item.ToStringFile() + Environment.NewLine;
+                        File.AppendAllText(URL + FileExtension, vl);
                     }
                     return true;
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
                     msg = DataBaseMsg.Unknown_Exception;
                     return false;
@@ -390,13 +393,18 @@ namespace Tools
                     //DataPack[] a = (DataPack[])method.Invoke(null, new object[] { this.URL + this.FileExtension, 0, 2 });
                     //this.Info = a.ToList();
                     //return true;
+                    if (File.Exists(URL + FileExtension) == false)
+                    {
+                        var s=File.Create(URL + FileExtension);
+                        s.Close();
+                    }
                     IStoreable storeable = new T();
                     string[] data = File.ReadAllLines(URL + FileExtension);
                     foreach (string s in data)
                         Info.Add((T)storeable.FromStringFile(s));
                     return true;
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
                     msg = DataBaseMsg.Unknown_Exception;
                     return false;
