@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-//Version 0.31
+//Version 0.4
 
 namespace Tools
 {
@@ -12,67 +12,11 @@ namespace Tools
     {
         using System.Collections;
         using System.IO;
+        using System.Reflection;
         using System.Threading;
 
         //using System.Runtime.InteropServices;
         //using System.Text;
-        /*public class DataPack<T> where T:notnull
-        {
-            public T value { get; set; }
-            public string URL { get; private set; }
-
-            public DataPack(string url)
-            {
-                URL = url;
-            }
-            public DataPack(string url,T val)
-            {
-                URL = url;
-                value = val;
-            }
-            private DataPack()
-            {
-
-            }
-
-            public void WriteToFile(string url)
-            {
-                FileStream f = new FileStream(url, FileMode.OpenOrCreate, FileAccess.Write);
-                var arr = ToByteArray(this.value);
-                f.Write(arr, 0, arr.Length);
-            }
-            public static DataPack<T> ReadFromFile<T>(string url,int startIndex=0,int endIndex=-1,int timeout=10000) where T:notnull
-            {
-                DataPack<T> r = new DataPack<T>();
-                FileStream f = new FileStream(url, FileMode.Open, FileAccess.Read);
-                f.ReadTimeout = timeout;
-                if (endIndex == -1)
-                    endIndex = (int)f.Length - startIndex - 1;
-                byte[] arr = new byte[endIndex - startIndex];
-                f.Read(arr, startIndex, arr.Length);
-                r = new DataPack<T>();
-                r.value = FromByteArray<T>(arr);
-                return r;
-            }
-
-            private unsafe static byte[] ToByteArray<T>(T data) where T:notnull
-            {
-                var size = Marshal.SizeOf<T>(data);
-                byte[] bytes = new byte[size];
-                var ptr = Marshal.AllocHGlobal(size);
-                Marshal.StructureToPtr(data, ptr, false);
-                Marshal.Copy(ptr, bytes, 0, size);
-                Marshal.FreeHGlobal(ptr);
-                return bytes;
-            }
-            private static T FromByteArray<T>(byte[] bytes) where T:notnull 
-            {
-                var ptr = Marshal.AllocHGlobal(bytes.Length);
-                Marshal.Copy(bytes, 0, ptr, bytes.Length);
-                T r = (T)Marshal.PtrToStructure(ptr, typeof(T));
-                return r;
-            }
-        }*/
 
         #region Data abstractions
         /// <summary>
@@ -100,7 +44,10 @@ namespace Tools
             /// <returns></returns>
             public string ToStringFile();
         }
-        public interface IStoreable: IWriteable, IReadable
+        /// <summary>
+        /// Allows The object to be stored in the machine memory.
+        /// </summary>
+        public interface IStoreable: IWriteable, IReadable 
         {
             /// <summary>
             /// Writes to the file in the desired <paramref name="path"/>.
@@ -139,7 +86,7 @@ namespace Tools
         /// <summary>
         /// A basic pack class that holds a variable which can be stored on a hard drive.
         /// </summary>
-        public abstract class BasePack : IStoreable
+        public abstract class BasePack : IStoreable 
         {
             /// <summary>
             /// The object that is the data which should be stored.
@@ -283,24 +230,79 @@ namespace Tools
         }
         #endregion
 
-        public enum DataBaseMsg
-        {
-            Succesfull_Operation = 0,
-            Unknown_Exception = 0xE7707
-
-        }
+        /// <summary>
+        /// Writes the data with the desired method.
+        /// </summary>
         public enum WriteMode
         {
+            /// <summary>
+            /// Appends this data to the end of the data base.
+            /// </summary>
             Append = 0,
+            /// <summary>
+            /// Overwrites the whole database with this data.
+            /// </summary>
             Overwrite = 1
         }
-        public class DataBase<T> : IEnumerable<T>, IEnumerator<T>, ICollection<T> where T : IStoreable, new()
+        /// <summary>
+        /// A base class for <see cref="DataBase{T}"/>
+        /// </summary>
+        public class DataBase
+        {
+            protected static List<DataBase> bases = new List<DataBase>();
+            public static IReadOnlyList<DataBase> Bases { get => bases; }
+            /// The location of the database.
+            /// </summary>
+            public string URL { get; set; } = "\\";
+            /// <summary>
+            /// The file extension of this database file.
+            /// </summary>
+            public readonly string FileExtension;
+            /// <summary>
+            /// Returns the full URL of the DataBase.
+            /// </summary>
+            public string FullURL => URL + FileExtension;
+
+            protected DataBase(string url,string fileExtension)
+            {
+                this.URL = url;
+                this.FileExtension = fileExtension;
+            }
+            protected DataBase(string fullURL)
+            {
+                int dotindex = fullURL.LastIndexOf('.');
+                string ex = fullURL.Substring(dotindex);
+                this.FileExtension = ex;
+                this.URL = fullURL.Substring(0, dotindex);
+            }
+        }
+        /// <summary>
+        /// Handles a communication connection with system storage.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        public class DataBase<T> : DataBase, IEnumerable<T>, IEnumerator<T>, ICollection<T>, IList<T> where T : IStoreable, new()
         {
             #region Instance members
+
             #region Fields and Properties
-            public List<T> Info { get; set; } = new List<T>();
-            public string URL { get; set; } = "\\";
-            public readonly string FileExtension;
+            /// <summary>
+            /// Field for <see cref="DataBase{T}.Info"/>.
+            /// </summary>
+            private List<T> _info = new List<T>();
+
+            /// <summary>
+            /// <summary>
+            /// A map of all the initializtion IStorables types.
+            /// </summary>
+            private Dictionary<string, IStoreable> Types = new Dictionary<string, IStoreable>();
+
+            /// <summary>
+            /// The data base data.
+            /// </summary>
+            public IReadOnlyList<T> Info { get => _info; }
+
+            //From IList<T>
+            public T this[int index] { get => ((IList<T>)Info)[index]; set => ((IList<T>)Info)[index] = value; }
             #endregion
 
             #region Constructors
@@ -309,23 +311,25 @@ namespace Tools
             /// </summary>
             /// <param name="url">The basic path of the file with no extension</param>
             /// <param name="fileExtention">The file extension.</param>
-            private DataBase(string url, string fileExtention)
+            private DataBase(string url, string fileExtention) : base(url, fileExtention)
             {
-                this.URL = url;
-                this.FileExtension = fileExtention;
-                Info = new List<T>();
+                PostConstruct();
             }
             /// <summary>
             /// Initialize an instance of a database with the full path, name and file extension of the data base file.
             /// </summary>
             /// <param name="fullURL">The full URL of the database.</param>
-            private DataBase(string fullURL)
+            private DataBase(string fullURL) : base(fullURL)
             {
-                int dotindex = fullURL.LastIndexOf('.');
-                string ex = fullURL.Substring(dotindex);
-                this.FileExtension = ex;
-                this.URL = fullURL.Substring(0, dotindex);
-                Info = new List<T>();
+                PostConstruct();
+            }
+            /// <summary>
+            /// Some initializing procedures.
+            /// </summary>
+            private void PostConstruct()
+            {
+                //Info = new List<T>();
+                bases.Add(this);
             }
             #endregion
 
@@ -334,46 +338,50 @@ namespace Tools
             /// Writes all the database information to the machine storage.
             /// </summary>
             /// <param name="mode">The mode in which the file whould be written.</param>
-            /// <param name="msg">A variable thats hold the database messages of the operation.</param>
             /// <returns></returns>
-            public bool Write(WriteMode mode, out DataBaseMsg msg)
+            public bool Write(WriteMode mode)
             {
                 if (mode == WriteMode.Append)
-                    return Write_append(out msg);
-                return Write_overwrite(out msg);
+                    return Write_append();
+                return Write_overwrite();
             }
             /// <summary>
             /// Adds the file the information of this data base in the end of it.
             /// </summary>
-            /// <param name="msg">The message to the user about the operation.</param>
             /// <returns></returns>
-            private bool Write_append(out DataBaseMsg msg)
+            private bool Write_append()
             {
-                msg = DataBaseMsg.Succesfull_Operation;
                 try
                 {
                     foreach (var item in Info)
                     {
-                        var vl = item.ToStringFile() + Environment.NewLine;
+                        //Item's type.
+                        var vl = item.GetType().FullName + ":";
+                        //Item's string+new line.
+                        vl += item.ToStringFile() + Environment.NewLine;
+                        //Saves.
                         File.AppendAllText(URL + FileExtension, vl);
                     }
                     return true;
                 }
+                catch (DirectoryNotFoundException e)
+                {
+                    throw;
+                    return false;
+                }
                 catch (Exception e)
                 {
-                    msg = DataBaseMsg.Unknown_Exception;
-                    return false;
+                    throw;
                 }
             }
             /// <summary>
             /// Overwrites the file with the information in this database.
             /// </summary>
-            /// <param name="msg">The message to the user about this operation.</param>
             /// <returns></returns>
-            private bool Write_overwrite(out DataBaseMsg msg)
+            private bool Write_overwrite()
             {
                 File.Delete(URL + FileExtension);
-                return Write_append(out msg);
+                return Write_append();
             }
             #endregion
 
@@ -381,32 +389,41 @@ namespace Tools
             /// <summary>
             /// Loads the databse with the information from its file.
             /// </summary>
-            /// <param name="msg">A variable thats hold the database messages of the operation.</param>
             /// <returns></returns>
-            public bool Load(out DataBaseMsg msg)
+            public bool Load()
             {
-                msg = DataBaseMsg.Succesfull_Operation;
                 try
                 {
-                    //var type = typeof(DataPack);
-                    //var method = type.GetMethod("ReadFromURL");
-                    //DataPack[] a = (DataPack[])method.Invoke(null, new object[] { this.URL + this.FileExtension, 0, 2 });
-                    //this.Info = a.ToList();
-                    //return true;
                     if (File.Exists(URL + FileExtension) == false)
                     {
-                        var s=File.Create(URL + FileExtension);
+                        var s = File.Create(URL + FileExtension);
                         s.Close();
                     }
-                    IStoreable storeable = new T();
+                    //IStoreable storeable = new T();
                     string[] data = File.ReadAllLines(URL + FileExtension);
                     foreach (string s in data)
-                        Info.Add((T)storeable.FromStringFile(s));
+                    {
+                        //Info.Add((T)storeable.FromStringFile(s));
+                        string TypeName = s.Substring(0, s.IndexOf(':'));
+                        string s1 = s.Substring(s.IndexOf(':') + 1);
+                        IStoreable storeable;
+                        if (this.Types.ContainsKey(TypeName))
+                            storeable = Types[TypeName];
+                        else
+                        {
+                            var lvl1 = Type.GetType(TypeName);
+                            var lvl2 = lvl1.GetConstructor(Type.EmptyTypes);
+                            var lvl3 = lvl2.Invoke(null);
+                            storeable = (IStoreable)lvl3;
+                            Types.Add(TypeName, storeable);
+                        }
+                        this.Add((T)storeable.FromStringFile(s1));
+                    }
                     return true;
                 }
                 catch (Exception e)
                 {
-                    msg = DataBaseMsg.Unknown_Exception;
+                    throw;
                     return false;
                 }
             }
@@ -426,13 +443,10 @@ namespace Tools
             /// <returns></returns>
             public static DataBase<T> Unite(DataBase<T> a, DataBase<T> b)
             {
-                a.Info.AddRange(b.Info);
-                DataBaseMsg msg;
-                a.Write(WriteMode.Overwrite, out msg);
-                if (msg != DataBaseMsg.Succesfull_Operation)
-                    throw new Exception("An exception occured");
+                a._info.AddRange(b.Info);
+                a.Write(WriteMode.Overwrite);
                 b.Delete();
-                return (DataBase<T>)a.MemberwiseClone();
+                return a;
             }
             #endregion
 
@@ -452,7 +466,7 @@ namespace Tools
             }
             public void Dispose()
             {
-
+                bases.Remove(this);
             }
             #endregion
             #region ICollection
@@ -460,11 +474,13 @@ namespace Tools
             public bool IsReadOnly => false;
             public void Add(T item)
             {
-                Info.Add(item);
+                if (item.GetType().GetConstructor(Type.EmptyTypes) is null)
+                    throw new TypeMismatchException($"The item '{item.GetType().FullName}' must have a constructor with 0 arguments!");
+                _info.Add(item);
             }
             public void Clear()
             {
-                Info.Clear();
+                _info.Clear();
             }
             public bool Contains(T item)
             {
@@ -472,11 +488,11 @@ namespace Tools
             }
             public void CopyTo(T[] array, int arrayIndex)
             {
-                Info.CopyTo(array, arrayIndex);
+                _info.CopyTo(array, arrayIndex);
             }
             public bool Remove(T item)
             {
-                return Info.Remove(item);
+                return _info.Remove(item);
             }
             #endregion
             #region IEnumerable
@@ -489,21 +505,110 @@ namespace Tools
                 return Info.GetEnumerator();
             }
             #endregion
+            #region IList
+            public int IndexOf(T item)
+            {
+                return _info.IndexOf(item);
+            }
+            public void Insert(int index, T item)
+            {
+                if (item.GetType().GetConstructor(Type.EmptyTypes) is null)
+                    throw new TypeMismatchException($"The item '{item.GetType().FullName}' must have a constructor with 0 arguments!");
+                _info.Insert(index, item);
+            }
+            public void RemoveAt(int index)
+            {
+                _info.RemoveAt(index);
+            }
+            #endregion
             #endregion
             #endregion
 
             #region Static members
-
-            private static List<object> bases;
-            public static IReadOnlyList<DataBase<T>> DataBases { get => (IReadOnlyList<DataBase<T>>)bases; }
-
-            public static DataBase<T> GetDataBase(string URL = "\\")
+            /// <summary>
+            /// All the <seealso cref="DataBase{T}"/> that are available.
+            /// </summary>
+            public static IReadOnlyList<DataBase<T>> DataBases
             {
-                //if (URL == "\\")
+                get => GetDataBases(bases);
+            }
+
+            /// <summary>
+            /// Helper method for <seealso cref="DataBases"/>
+            /// </summary>
+            /// <param name="bases">The <seealso cref="List{Tools.SysIO.DataBase}"/> </param>
+            /// <returns></returns>
+            private static IReadOnlyList<DataBase<T>> GetDataBases(IEnumerable<DataBase> bases)
+            {
+                var r = new List<DataBase<T>>();
+                foreach (var item in bases)
+                    if (item.GetType() == typeof(DataBase<T>))
+                        r.Add(item as DataBase<T>);
+                return r;
+            }
+
+            /// <summary>
+            /// Returns the data bases the user asked for, if the data base already exists returns a reference to it.
+            /// </summary>
+            /// <param name="fullURL">The URL of the data base.</param>
+            /// <param name="IgnoreMissMatchExistingDBs">Indicates whether to ignore already existing 
+            /// different data bases types with the same URL
+            /// or not.</param>
+            /// <returns>The specified <seealso cref="DataBase{T}"/></returns>
+            public static DataBase<T> GetDataBase(string fullURL = "\\",bool IgnoreMissMatchExistingDBs=false)
+            {
+                if (fullURL == "\\")
+                    throw new InvalidURLException("The URL MUST be defined!");
+
+                var relevants = DataBase.bases.Where((db) => { return db.FullURL == fullURL; });
+                int count = relevants.Count();
+
+                if (count == 0)
+                    return new DataBase<T>(fullURL);
+
+                if (IgnoreMissMatchExistingDBs)
+                    return ReturnRelevant(fullURL, relevants);
+
+                if(count>1)
+                    throw new InterferingDataBasesException("There are already existeing data bases with the same URL but with different types!");
+
+                if (relevants.ElementAt(0) is DataBase<T>)
+                    return relevants.ElementAt(0) as DataBase<T>;
+                throw new InterferingDataBasesException("There are already existeing data bases with the same URL but with different types!");
+            }
+            /// <summary>
+            /// Returns the relevant <see cref="DataBase{T}"/>.
+            /// </summary>
+            /// <param name="URL">The URL of the data base.</param>
+            /// <param name="relevants">A list of all the databases with the specified URL.</param>
+            /// <returns></returns>
+            private static DataBase<T> ReturnRelevant(string URL, IEnumerable<DataBase> relevants)
+            {
+                var r = GetDataBases(relevants);
+                if (r.Count > 0)
+                    return r[0];
                 return new DataBase<T>(URL);
-                //return null;
             }
             #endregion
         }
+
+        #region Exceptions
+        public class InvalidURLException : Exception
+        {
+            public InvalidURLException(string message) : base(message)
+            {
+            }
+        }
+        public class InterferingDataBasesException : Exception
+        {
+            public InterferingDataBasesException(string message) : base(message)
+            {
+            }
+        }
+        public class TypeMismatchException : Exception
+        {
+            public TypeMismatchException(string message) : base(message) { }
+        }
+        #endregion
     }
 }

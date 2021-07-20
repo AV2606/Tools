@@ -1,8 +1,9 @@
 ﻿using System;
+using System.Reflection;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-//Version 0.31
+//Version 0.4
 
 namespace Tools
 {
@@ -253,6 +254,7 @@ namespace Tools
             }
             #endregion
             #endregion
+            #region Listing
             /// <summary>
             /// Returns an array which his elements are a sub-sequence of this array.
             /// </summary>
@@ -324,17 +326,34 @@ namespace Tools
                 return r + "}";
             }
             /// <summary>
+            /// Adds the elements of the specified collection to the end of the <see cref="IList{T}"/>.
+            /// </summary>
+            /// <typeparam name="T">The generic type of the List collection</typeparam>
+            /// <param name="me">The list to add to.</param>
+            /// <param name="collection">The collection of elements to add.</param>
+            /// <exception cref="ArgumentNullException">Collection is null</exception>
+            public static void AddRange<T>(this IList<T> me, IEnumerable<T> collection)
+            {
+                if(me is List<T> l)
+                {
+                    l.AddRange(collection);
+                    return;
+                }
+                foreach(var item in collection)
+                {
+                    me.Add(item);
+                }
+            }
+            /// <summary>
             /// Returns a string which has the same characters as <paramref name="arr"/>
             /// </summary>
             /// <param name="arr">The <seealso cref="char"/>[] to convert.</param>
             /// <returns></returns>
             public static string AsString(this char[] arr)
             {
-                string r = "";
-                foreach (char c in arr)
-                    r += c;
-                return r;
+                return new string(arr);
             }
+            #endregion
             #region getters
             /// <summary>
             /// Returns the Maximum value of the <see cref="IEnumerable{T}"/>.
@@ -485,6 +504,24 @@ namespace Tools
             public static Color Sub(this Color color, Color color1)
             {
                 return Add(color, color1.Multiply(-1));
+            }
+            #endregion
+            #region Reflecting
+            public static IEnumerable<Type> GetAllDerivedClasses(this Type type,IEnumerable<Assembly> Assemblies)
+            {
+                List<Type> r = new List<Type>();
+                //Assemblies = Assemblies.ToDictionary<Assembly,int>();
+                foreach(var a in Assemblies)
+                {
+                    var add=a.GetTypes().Where((cl) => { return cl.IsClass && cl.IsSubclassOf(type); });
+                    r.AddRange(add);
+                }
+                return r;
+            }
+            public static IEnumerable<Type> GetAllDerivedClasses(this Type type)
+            {
+                var r = new List<Assembly>(){ Assembly.GetEntryAssembly(),Assembly.GetAssembly(type)};
+                return type.GetAllDerivedClasses(r);
             }
             #endregion
             /// <summary>
