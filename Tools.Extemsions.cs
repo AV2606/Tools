@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-//Version 0.4
+//Version 0.4.0.1
 
 namespace Tools
 {
@@ -402,7 +402,7 @@ namespace Tools
                 return maxIndex;
             }
             /// <summary>
-            /// Returns the index of the 'minumum' value of the <see cref="IEnumerable{T}"/>.
+            /// Returns the index of the 'minimum' value of the <see cref="IEnumerable{T}"/>.
             /// </summary>
             /// <typeparam name="T">Should implement the <see cref="IComparable"/></typeparam>
             /// <param name="me"></param>
@@ -535,6 +535,30 @@ namespace Tools
                 double dx = point.X - point1.X;
                 double dy = point.Y - point1.Y;
                 return Math.Sqrt(dx * dx + dy * dy);
+            }
+            /// <summary>
+            /// Returns a random value of the <see cref="Enum"/> <paramref name="e"/>
+            /// </summary>
+            /// <param name="rnd">The random instance.</param>
+            /// <param name="e">An instance of an <see cref="Enum"/> object.</param>
+            /// <returns></returns>
+            public static Enum Next(this Random rnd,Enum e)
+            {
+                var arr = Enum.GetValues(e.GetType());
+                return arr.GetValue(rnd.Next(arr.Length)) as Enum;
+            }
+            /// <summary>
+            /// Returns a random value of the <see cref="Enum"/> <paramref name="e"/>
+            /// </summary>
+            /// <param name="rnd">The random instance.</param>
+            /// <param name="e">An instance of an <see cref="Enum"/> object.</param>
+            /// <returns></returns>
+            public static Enum Next(this Random rnd,Type enumType)
+            {
+                if (enumType.IsEnum == false)
+                    throw new ArgumentException($"{nameof(enumType)} is NOT an Enum!");
+                var arr = Enum.GetValues(enumType);
+                return arr.GetValue(rnd.Next(arr.Length)) as Enum;
             }
         }
     }
