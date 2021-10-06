@@ -25,8 +25,8 @@ namespace Tools
             {
                 data = new object();
             }
-            public abstract IStoreable FromStringFile(string content);
-            public abstract string ToStringFile();
+            public abstract IStoreable FromStringFile(SingleLineString content);
+            public abstract SingleLineString ToStringFile();
         }
         #endregion
     }

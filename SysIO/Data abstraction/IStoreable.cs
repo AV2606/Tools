@@ -1,5 +1,5 @@
 ﻿using System;
-//Version 0.4
+//Version 0.5
 
 namespace Tools
 {
@@ -9,6 +9,7 @@ namespace Tools
     namespace SysIO
     {
         using System.IO;
+        using System.Collections.Generic;
         #region Data abstractions
         /// <summary>
         /// Allows The object to be stored in the machine memory.
@@ -27,7 +28,7 @@ namespace Tools
             {
                 try
                 {
-                    File.WriteAllText(path, this.ToStringFile());
+                    File.WriteAllText(path, (string)this.ToStringFile());
                 }
                 catch(Exception)
                 {

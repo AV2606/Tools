@@ -1,4 +1,4 @@
-﻿//Version 0.4
+﻿//Version 0.5
 
 namespace Tools
 {
@@ -22,9 +22,13 @@ namespace Tools
             {
                 Data = value;
             }
-            public override StringPack FromStringFile(string content) =>
+            public StringPack(SingleLineString value)
+            {
+                Data = (string)value;
+            }
+            public override StringPack FromStringFile(SingleLineString content) =>
                  new StringPack(content);
-            public override string ToStringFile() =>
+            public override SingleLineString ToStringFile() =>
                 this.Data;
 
             #region casting

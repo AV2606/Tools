@@ -1,5 +1,5 @@
 ﻿using System;
-//Version 0.4
+//Version 0.5
 
 namespace Tools
 {
@@ -23,9 +23,9 @@ namespace Tools
             {
                 Data = value;
             }
-            public override NumberPack FromStringFile(string content) =>
-                 new NumberPack(Convert.ToDecimal(content));
-            public override string ToStringFile() =>
+            public override NumberPack FromStringFile(SingleLineString content) =>
+                 new NumberPack(Convert.ToDecimal((string)content));
+            public override SingleLineString ToStringFile() =>
                 this.Data + "";
 
             #region casting

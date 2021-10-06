@@ -1,5 +1,5 @@
 ﻿using System;
-//Version 0.4
+//Version 0.5
 
 namespace Tools
 {
@@ -23,9 +23,9 @@ namespace Tools
             {
                 Data = value;
             }
-            public override IntPack FromStringFile(string content) =>
-                 new IntPack(Convert.ToInt64(content));
-            public override string ToStringFile() =>
+            public override IntPack FromStringFile(SingleLineString content) =>
+                 new IntPack(Convert.ToInt64((string)content));
+            public override SingleLineString ToStringFile() =>
                 this.Data + "";
 
             #region casting

@@ -1,5 +1,5 @@
 ﻿using System;
-//Version 0.4
+//Version 0.5
 
 namespace Tools
 {
@@ -23,9 +23,9 @@ namespace Tools
             {
                 Data = value;
             }
-            public override BooleanPack FromStringFile(string content) =>
-                 new BooleanPack(Convert.ToBoolean(content));
-            public override string ToStringFile() =>
+            public override BooleanPack FromStringFile(SingleLineString content) =>
+                 new BooleanPack(Convert.ToBoolean((string)content));
+            public override SingleLineString ToStringFile() =>
                 this.Data + "";
 
             #region casting
